@@ -139,7 +139,7 @@
             }
         }
 
-        static void EncryptByPlayfairCipher(char[] str, string key)
+        public static void EncryptByPlayfairCipher(char[] str, string key)
         {
             char[,] keyTable = GenerateKeyTable(key);
 
@@ -148,7 +148,7 @@
             Encrypt(str, keyTable, ps);
         }
 
-        static void DecryptByPlayfairCipher(char[] str, string key)
+        public static void DecryptByPlayfairCipher(char[] str, string key)
         {
             char[,] keyTable = GenerateKeyTable(key);
 

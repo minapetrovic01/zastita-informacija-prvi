@@ -29,7 +29,30 @@
         <button @onclick="SendMessage">Send Message</button>
     </form>
     <button @onclick="ShowHideEncryptedMessages">@show_encrypted_text</button>
+    <button @onclick="ClearMessages">Clear Messages</button>
 
+    <div class="messages">
+        <h4>Messages</h4>
+        <ul>
+            @foreach (var message in Messages)
+            {
+                <li>@message</li>
+                <li>************</li>
+            }
+        </ul>
+        @if (show_encrypted)
+        {
+            <h4>Encrypted Messages</h4>
+            <ul>
+                @foreach (var message in EncryptedMessages)
+                {
+                    <li>@message</li>
+                    <li>************</li>
+                }
+            </ul>
+        }
+       
+    </div>
 </div>
 
 @code
