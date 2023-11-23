@@ -1,0 +1,130 @@
+﻿@page "/"
+@using System.Net.Sockets
+@using System.Text;
+@using TcpServer= Chat.TcpServer
+@using PlayfairCipher= Chat.PlayfairCipher
+@implements IAsyncDisposable
+@inject IConfiguration Configuration
+
+<PageTitle>Secure Chat</PageTitle>
+
+<div class="box">
+    <h3>ChatApp</h3>
+
+    @if (ErrorMessage != null)
+    {
+        <p style="color: red;">@ErrorMessage</p>
+    }
+
+    <h4>Listening on Port: @ListeningPort</h4>
+
+    <form>
+        <label for="targetPort">Target Port:</label>
+        <input id="targetPort" @bind="TargetPort" />
+        <br />
+        <label for="message">Message:</label>
+       <br />
+        <textarea id="message" @bind="Message" name="message" rows="10" cols="30"></textarea>
+        <br />
+        <button @onclick="SendMessage">Send Message</button>
+    </form>
+    <button @onclick="ShowHideEncryptedMessages">@show_encrypted_text</button>
+
+</div>
+
+@code
+{
+    private static TcpServer tcpServer;
+    private TcpClient tcpClient;
+
+    private List<string> Messages = new List<string>();
+    private List<string> EncryptedMessages = new List<string>();
+
+
+    public string Message { get; set; }
+    public string ErrorMessage { get; set; }
+
+    public int ListeningPort { get; set; }
+    public int TargetPort { get; set; }
+
+    private static bool show_encrypted = false;
+
+    private string show_encrypted_text = "Show Encrypted Messages";
+
+    protected override Task OnInitializedAsync()
+    {
+        ListeningPort = Configuration.GetValue<int>("Application:ListeningPort");
+
+        if (tcpServer == null)
+        {
+            tcpServer = new TcpServer(ListeningPort, HandleReceivedMessage);
+            try
+            {
+                _ = tcpServer.StartServer();
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e.Message);
+                ErrorMessage = $"Error: {e.Message}";
+            }
+        }
+
+        //tcpClient = new TcpClient();
+        return base.OnInitializedAsync();
+    }
+
+    private void HandleReceivedMessage(string message)
+    {
+        Messages.Add(message);
+        Console.WriteLine("Received: {0}", Messages.Count);
+        InvokeAsync(() => StateHasChanged());
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        await Task.CompletedTask;
+    }
+
+    private async Task SendMessage()
+    {
+        try
+        {
+            if (TargetPort > 0)
+            {
+                using (var tcpClient = new TcpClient())
+                {
+                    await tcpClient.ConnectAsync("127.0.0.1", TargetPort);
+
+                    using (NetworkStream stream = tcpClient.GetStream())
+                    {
+                        byte[] data = Encoding.ASCII.GetBytes(Message);
+                        await stream.WriteAsync(data, 0, data.Length);
+                        Console.WriteLine($"Sent: {Encoding.ASCII.GetString(data)}");
+                    }
+                }
+
+                Message = ""; // Clear the input field after sending
+            }
+        }
+        catch (Exception e)
+        {
+            ErrorMessage = $"Error: {e.Message}";
+        }
+    }
+
+    private async Task ClearMessages()
+    {
+        Messages.Clear();
+        EncryptedMessages.Clear();
+
+        await InvokeAsync(() => StateHasChanged());
+    }
+
+    private async void ShowHideEncryptedMessages()
+    {
+        show_encrypted = !show_encrypted;
+        show_encrypted_text =show_encrypted? "Hide Encrypted Messages" : "Show Encrypted Messages";
+        await InvokeAsync(() => StateHasChanged());
+    }
+
+}
