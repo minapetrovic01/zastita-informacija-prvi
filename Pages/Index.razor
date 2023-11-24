@@ -11,20 +11,24 @@
 <div class="box">
     <h3>ChatApp</h3>
 
-    @if (ErrorMessage != null)
+    @if (errorMessage != null)
     {
-        <p style="color: red;">@ErrorMessage</p>
+        <p style="color: red;">@errorMessage</p>
+    }
+    @if (!Messages.Any())
+    {
+        <p>No messages received.</p>
     }
 
-    <h4>Listening on Port: @ListeningPort</h4>
+    <h3>Listening on Port: @ListeningPort</h3>
 
     <form>
         <label for="targetPort">Target Port:</label>
         <input id="targetPort" @bind="TargetPort" />
         <br />
         <label for="message">Message:</label>
-       <br />
-        <textarea id="message" @bind="Message" name="message" rows="10" cols="30"></textarea>
+        <br />
+        <textarea id="message" @bind="message" name="message" rows="10" cols="30"></textarea>
         <br />
         <button @onclick="SendMessage">Send Message</button>
     </form>
@@ -32,26 +36,32 @@
     <button @onclick="ClearMessages">Clear Messages</button>
 
     <div class="messages">
-        <h4>Messages</h4>
-        <ul>
-            @foreach (var message in Messages)
-            {
-                <li>@message</li>
-                <li>************</li>
-            }
-        </ul>
+        @if (!show_encrypted)
+        {
+            <h4>Messages</h4>
+
+            <div>
+                @foreach (var message in Messages)
+                {
+                    <div class="messageBox">
+                        @message.Content
+                    </div>
+                }
+            </div>
+        }
         @if (show_encrypted)
         {
             <h4>Encrypted Messages</h4>
-            <ul>
-                @foreach (var message in EncryptedMessages)
+
+            <div>
+                @foreach (var message in Messages)
                 {
-                    <li>@message</li>
-                    <li>************</li>
+                    <div class="messageBox">
+                        @message.EncryptedContent
+                    </div>
                 }
-            </ul>
+            </div>
         }
-       
     </div>
 </div>
 
@@ -60,12 +70,13 @@
     private static TcpServer tcpServer;
     private TcpClient tcpClient;
 
-    private List<string> Messages = new List<string>();
+    private List<Message> Messages = new List<Message>();
     private List<string> EncryptedMessages = new List<string>();
+    private string Key { get; set; }
 
 
-    public string Message { get; set; }
-    public string ErrorMessage { get; set; }
+    public string message { get; set; }
+    public string errorMessage { get; set; }
 
     public int ListeningPort { get; set; }
     public int TargetPort { get; set; }
@@ -74,13 +85,16 @@
 
     private string show_encrypted_text = "Show Encrypted Messages";
 
+
     protected override Task OnInitializedAsync()
     {
+        Key = Configuration["key"];
         ListeningPort = Configuration.GetValue<int>("Application:ListeningPort");
 
         if (tcpServer == null)
         {
-            tcpServer = new TcpServer(ListeningPort, HandleReceivedMessage);
+            Func<string, Task> x = HandleReceivedMessage;
+            tcpServer = new TcpServer(ListeningPort, x);
             try
             {
                 _ = tcpServer.StartServer();
@@ -88,19 +102,24 @@
             catch (Exception e)
             {
                 Console.WriteLine(e.Message);
-                ErrorMessage = $"Error: {e.Message}";
+                errorMessage = $"Error: {e.Message}";
             }
         }
-
-        //tcpClient = new TcpClient();
         return base.OnInitializedAsync();
     }
 
-    private void HandleReceivedMessage(string message)
+    private async Task HandleReceivedMessage(string message)
     {
-        Messages.Add(message);
+        string decryptedMessage = message;
+        if (Key.Length != 0)
+        {
+            decryptedMessage = PlayfairCipher.DecryptByPlayfairCipher(message, Key);
+        }
+        Messages.Add(new Message(decryptedMessage, message));
+
         Console.WriteLine("Received: {0}", Messages.Count);
-        InvokeAsync(() => StateHasChanged());
+
+        await InvokeAsync(() => StateHasChanged());
     }
 
     public async ValueTask DisposeAsync()
@@ -120,34 +139,48 @@
 
                     using (NetworkStream stream = tcpClient.GetStream())
                     {
-                        byte[] data = Encoding.ASCII.GetBytes(Message);
+                        if (Key.Length != 0)
+                        {
+                            message = PlayfairCipher.EncryptByPlayfairCipher(message, Key);
+                        }
+                        byte[] data = Encoding.ASCII.GetBytes(message);
                         await stream.WriteAsync(data, 0, data.Length);
                         Console.WriteLine($"Sent: {Encoding.ASCII.GetString(data)}");
                     }
                 }
 
-                Message = ""; // Clear the input field after sending
+                message = "";
             }
         }
         catch (Exception e)
         {
-            ErrorMessage = $"Error: {e.Message}";
+            errorMessage = $"Error: {e.Message}";
         }
     }
 
     private async Task ClearMessages()
     {
-        Messages.Clear();
-        EncryptedMessages.Clear();
-
-        await InvokeAsync(() => StateHasChanged());
+        Console.WriteLine("clear");
+        try
+        {
+            Messages = new();
+            EncryptedMessages = new();
+            await InvokeAsync(() => StateHasChanged());
+        }
+        catch (Exception e)
+        {
+            errorMessage = $"Error: {e.Message}";
+            Console.WriteLine(e.Message);
+        }
     }
 
-    private async void ShowHideEncryptedMessages()
+    private void ShowHideEncryptedMessages()
     {
         show_encrypted = !show_encrypted;
         show_encrypted_text =show_encrypted? "Hide Encrypted Messages" : "Show Encrypted Messages";
-        await InvokeAsync(() => StateHasChanged());
+        StateHasChanged();
+
     }
+    
 
 }

@@ -8,9 +8,9 @@ namespace Chat
     {
         private TcpListener tcpListener;
         private Dictionary<int, TcpClient> clients = new Dictionary<int, TcpClient>();
-        private Action<string> messageReceivedCallback;
+        private Func<string, Task> messageReceivedCallback;
 
-        public TcpServer(int port, Action<string> messageReceivedCallback)
+        public TcpServer(int port, Func<string,Task> messageReceivedCallback)
         {
             this.tcpListener = new TcpListener(IPAddress.Parse("127.0.0.1"), port);
             this.messageReceivedCallback = messageReceivedCallback;
@@ -55,8 +55,7 @@ namespace Chat
                 while ((bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length)) > 0)
                 {
                     string message = Encoding.ASCII.GetString(buffer, 0, bytesRead);
-                    Console.WriteLine(message);
-                    messageReceivedCallback?.Invoke(message);
+                    await messageReceivedCallback?.Invoke(message);
 
                     // Extract the port number from the client's endpoint
                     int senderPort = ((IPEndPoint)client.Client.RemoteEndPoint).Port;

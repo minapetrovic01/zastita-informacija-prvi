@@ -1,7 +1,10 @@
-﻿namespace Chat
+﻿using Microsoft.AspNetCore.DataProtection.KeyManagement;
+
+namespace Chat
 {
     public class PlayfairCipher
     {
+        static bool flag = false;
         static char[,] GenerateKeyTable(string key)
         {
             char[,] keyTable = new char[5, 5];
@@ -77,84 +80,93 @@
             return (a % 5);
         }
 
-        static int Prepare(char[] str, int ptrs)
+        static string Prepare(string str, int ptrs)
         {
-            if (ptrs % 2 != 0)
+            string modifiedString = str.ToLower().Replace(" ", "");
+
+            if (modifiedString.Length % 2 != 0)
             {
-                str[ptrs++] = 'z';
-                str[ptrs] = '\0';
+                modifiedString+=("z");
+                flag = true;
             }
-            return ptrs;
+            return modifiedString;
         }
 
-        static void Encrypt(char[] str, char[,] keyTable, int ps)
+        static string Encrypt(string str, char[,] keyTable, int ps)
         {
             int[] a = new int[4];
+            char[] array = str.ToCharArray();
 
             for (int i = 0; i < ps; i += 2)
             {
-                Search(keyTable, str[i], str[i + 1], a);
+                Search(keyTable, array[i], array[i + 1], a);
 
                 if (a[0] == a[2])
                 {
-                    str[i] = keyTable[a[0], Mod5(a[1] + 1)];
-                    str[i + 1] = keyTable[a[0], Mod5(a[3] + 1)];
+                    array[i] = keyTable[a[0], Mod5(a[1] + 1)];
+                    array[i + 1] = keyTable[a[0], Mod5(a[3] + 1)];
                 }
                 else if (a[1] == a[3])
                 {
-                    str[i] = keyTable[Mod5(a[0] + 1), a[1]];
-                    str[i + 1] = keyTable[Mod5(a[2] + 1), a[1]];
+                    array[i] = keyTable[Mod5(a[0] + 1), a[1]];
+                    array[i + 1] = keyTable[Mod5(a[2] + 1), a[1]];
                 }
                 else
                 {
-                    str[i] = keyTable[a[0], a[3]];
-                    str[i + 1] = keyTable[a[2], a[1]];
+                    array[i] = keyTable[a[0], a[3]];
+                    array[i + 1] = keyTable[a[2], a[1]];
                 }
             }
+            flag = false;
+            return new string(array, 0, ps);
+            
         }
 
-        static void Decrypt(char[] str, char[,] keyTable, int ps)
+        static string Decrypt(string str, char[,] keyTable, int ps)
         {
             int[] a = new int[4];
+            char[] array = str.ToCharArray();
 
             for (int i = 0; i < ps; i += 2)
             {
-                Search(keyTable, str[i], str[i + 1], a);
+                Search(keyTable, array[i], array[i + 1], a);
 
                 if (a[0] == a[2])
                 {
-                    str[i] = keyTable[a[0], Mod5(a[1] - 1)];
-                    str[i + 1] = keyTable[a[0], Mod5(a[3] - 1)];
+                    array[i] = keyTable[a[0], Mod5(a[1] - 1)];
+                    array[i + 1] = keyTable[a[0], Mod5(a[3] - 1)];
                 }
                 else if (a[1] == a[3])
                 {
-                    str[i] = keyTable[Mod5(a[0] - 1), a[1]];
-                    str[i + 1] = keyTable[Mod5(a[2] - 1), a[1]];
+                    array[i] = keyTable[Mod5(a[0] - 1), a[1]];
+                    array[i + 1] = keyTable[Mod5(a[2] - 1), a[1]];
                 }
                 else
                 {
-                    str[i] = keyTable[a[0], a[3]];
-                    str[i + 1] = keyTable[a[2], a[1]];
+                    array[i] = keyTable[a[0], a[3]];
+                    array[i + 1] = keyTable[a[2], a[1]];
                 }
             }
+            return new string(array, 0, ps);
         }
 
-        public static void EncryptByPlayfairCipher(char[] str, string key)
+        public static string EncryptByPlayfairCipher(string str, string key)
         {
             char[,] keyTable = GenerateKeyTable(key);
 
-            // Plaintext
-            int ps = Prepare(str, str.Length);
-            Encrypt(str, keyTable, ps);
+            string modified=Prepare(str, str.Length);
+            string output=Encrypt(modified, keyTable, modified.Length);
+            return output;
         }
 
-        public static void DecryptByPlayfairCipher(char[] str, string key)
+        public static string DecryptByPlayfairCipher(string str, string key)
         {
             char[,] keyTable = GenerateKeyTable(key);
 
-            // Plaintext
-            int ps = Prepare(str, str.Length);
-            Decrypt(str, keyTable, ps);
+            string modified = Prepare(str, str.Length);
+            string output=Decrypt(modified, keyTable, modified.Length);
+            return output;
+
         }
     }
 }
